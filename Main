@@ -1,0 +1,175 @@
+// mac adress | 3C:71:BF:D0:78:FC
+// connect a 10uf capactirot + > enable - > GND to overcomae "the fatal ......timeed out "
+//***************************#including libs******************************
+#include <WiFi.h>
+#include <WiFiMulti.h>
+#include <WiFiClient.h>
+#include <BlynkSimpleEsp32.h> // library of DHT11 
+#include "DHT.h"        // library of DHT11 
+
+#define DHTTYPE DHT11   // DHT 11
+#define dht_dpin 13
+#define connection_indicator 15
+#define dht_t_indicator 4
+#define dht_h_indicator 5
+#define PIR_PIN 12
+#define pir_indicator 21
+#define gas_indicator 22
+//#define temp_sensor 14
+#define loop_delay 50
+#define WIFI_SSID "R&D" // WIFI Name <<-------------------------------------------------------------------------------
+#define WIFI_PASSWORD "R&D.123456" // WIFI Password <<----------------------------------------------------------------
+
+char auth[] = "ef3b059b2d414e1d819f1155f106bba3";
+int connection_state = 1;
+
+WiFiMulti wifiMulti;
+DHT dht(dht_dpin, DHTTYPE); // (13, DHT11);
+BlynkTimer timer;
+
+//***********************Connecting WiFi**********************************
+bool Wifi_connection(void)
+{
+  while (wifiMulti.run() != WL_CONNECTED)
+  {
+    return 0;
+  }
+  return 1;
+}
+
+//***********************DHT Sensor**********************************
+float dht_sensor(void)
+{
+  /* left pin -> signal
+      mid pin -> 5v
+      right pin -> GND
+  */
+  // (g/m3)
+  float humidity = 0;
+  //float temp = 0;
+  // Please don't send more that 10 values per second.
+  humidity = dht.readHumidity();
+  return humidity;
+}
+
+//***********************PIR Sensor**********************************
+bool PIR_SENSOR(void)
+{
+  /*
+     left pin -> 5v
+     mid pin -> signal
+     right pint -> GND
+  */
+  bool PIR_FLAG = LOW;             // by default, no motion detected
+  int PIR_READ = 0;                 // variable to store the sensor status (value)
+  PIR_READ = digitalRead(PIR_PIN);   // read sensor value
+  // Serial.println(PIR_READ);
+  return PIR_READ;
+}
+
+//***********************Temperature Sensor**********************************
+float TEMP_SENSOR(void)
+{
+  //int CorrectedValue = 0;
+  //float tempc = 0;
+  //float vout = 0.00;
+  float dht_t = 0.00;
+
+  //vout = analogRead(temp_sensor); //Reading the value from sensor
+  dht_t = dht.readTemperature();
+  //CorrectedValue = ((vout - 1975) * 4.995) + 0.01;
+  //tempc = (vout - 4068);
+  return dht_t;
+}
+float GAS_SENSOR(void)
+{
+  //int sensorValue = analogRead(27);
+  int sensorValue = digitalRead(27);
+  return sensorValue;
+}
+//***********************setup**********************************
+void setup()
+{
+  Serial.begin(115200);
+  dht.begin();
+
+  wifiMulti.addAP(WIFI_SSID, WIFI_PASSWORD );
+  wifiMulti.addAP("AAA", "hello_world");
+
+  // Debug console
+  Blynk.begin(auth, WIFI_SSID, WIFI_PASSWORD);
+
+  // Setup a function to be called every second
+  //timer.setInterval(5000L, dht_sensor);
+
+  pinMode(PIR_PIN, INPUT);    // initialize PIN sensor as an input
+  //  pinMode(temp_sensor, INPUT);    // initialize PIN sensor as an input
+  pinMode(connection_indicator, OUTPUT);
+  pinMode(dht_t_indicator, OUTPUT);
+  pinMode(dht_h_indicator, OUTPUT);
+  pinMode(pir_indicator, OUTPUT);
+  pinMode(gas_indicator, OUTPUT);
+
+  digitalWrite( connection_indicator, LOW);
+  digitalWrite( dht_t_indicator, LOW);
+  digitalWrite( dht_h_indicator, LOW);
+  digitalWrite( pir_indicator, LOW);
+  digitalWrite( gas_indicator, LOW);
+
+}
+
+//***********************loop**********************************
+void loop()
+{
+  delay(10); // wait for  power stabel
+  WidgetLED Motion_Led(V0);
+  // connecting to wifi
+  // put your main code here, to run repeatedly:
+  while (Wifi_connection() == 0)
+  {
+    Serial.println("Esp not connected to WiFi");
+    digitalWrite( connection_indicator, HIGH);
+    Motion_Led.off();
+    delay(1000);
+  }
+  if (connection_state == 1)
+  {
+    Serial.println("Esp connected to WiFi");
+    digitalWrite( connection_indicator, LOW);
+    connection_state = 0;
+  }
+  //********************************************************************
+  /* if (PIR_SENSOR() == 1 )
+    {
+     Motion_Led.on();
+    }
+    else
+    {
+     Motion_Led.off();
+    } */
+
+  // fixed PIR
+  Motion_Led.on();
+  digitalWrite( pir_indicator, HIGH);
+  delay(1000);
+  Motion_Led.off();
+
+  Blynk.virtualWrite(V1, dht_sensor());
+  digitalWrite( dht_t_indicator, HIGH);
+
+  Blynk.virtualWrite(V2, TEMP_SENSOR());
+  digitalWrite( dht_h_indicator, HIGH);
+
+  Blynk.virtualWrite(V3, GAS_SENSOR());
+  digitalWrite( gas_indicator, HIGH);
+
+  delay(1000);
+  digitalWrite( dht_t_indicator, LOW);
+  digitalWrite( dht_h_indicator, LOW);
+  digitalWrite( pir_indicator, LOW);
+  digitalWrite( gas_indicator, LOW);
+
+  Blynk.run();
+  delay(3000);
+  //timer.run(); // Initiates BlynkTimer
+}
